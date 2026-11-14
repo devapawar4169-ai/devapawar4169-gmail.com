@@ -1,0 +1,204 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: deny all access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(studentId) {
+      return isVerifiedUser() && request.auth.uid == studentId;
+    }
+
+    function isValidAgeGroup(val) {
+      return val is string && val in ['5-7', '8-10', '11-14'];
+    }
+
+    function isValidLanguage(val) {
+      return val is string && val in ['en', 'hinglish', 'hi', 'mr', 'gu', 'ta', 'te', 'bn', 'kn'];
+    }
+
+    function isValidBadgeList(badges) {
+      return badges is list && badges.size() <= 20 && (badges.size() == 0 || badges[0] is string);
+    }
+
+    function isValidStudent(data, studentId) {
+      return data.uid is string
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.uid == studentId
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 80
+        && isValidAgeGroup(data.ageGroup)
+        && isValidLanguage(data.language)
+        && data.stars is int && data.stars >= 0 && data.stars <= 1000000
+        && data.lessonsCompleted is int && data.lessonsCompleted >= 0 && data.lessonsCompleted <= 100000
+        && data.quizzesCompleted is int && data.quizzesCompleted >= 0 && data.quizzesCompleted <= 100000
+        && isValidBadgeList(data.unlockedBadges)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSession(data, studentId) {
+      return data.studentId is string
+        && isValidId(data.studentId)
+        && data.studentId == request.auth.uid
+        && data.studentId == studentId
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 60
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 120
+        && isValidAgeGroup(data.ageGroup)
+        && isValidLanguage(data.language)
+        && data.messageCount is int && data.messageCount >= 0 && data.messageCount <= 500
+        && data.starsEarned is int && data.starsEarned >= 0 && data.starsEarned <= 5000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessage(data, studentId, sessionId) {
+      return data.studentId is string
+        && isValidId(data.studentId)
+        && data.studentId == request.auth.uid
+        && data.studentId == studentId
+        && data.sessionId is string
+        && isValidId(data.sessionId)
+        && data.sessionId == sessionId
+        && data.role is string && data.role in ['student', 'teacher']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 4000
+        && data.lessonTitle is string && data.lessonTitle.size() <= 160
+        && data.createdAt is timestamp;
+    }
+
+    function isValidQuizResult(data, studentId) {
+      return data.studentId is string
+        && isValidId(data.studentId)
+        && data.studentId == request.auth.uid
+        && data.studentId == studentId
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 60
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 120
+        && isValidAgeGroup(data.ageGroup)
+        && data.score is int && data.score >= 0 && data.score <= 10
+        && data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 10
+        && data.starsEarned is int && data.starsEarned >= 0 && data.starsEarned <= 500
+        && data.createdAt is timestamp;
+    }
+
+    match /students/{studentId} {
+      allow get: if isValidId(studentId) && isOwner(studentId);
+      allow list: if false;
+
+      allow create: if isValidId(studentId)
+        && isOwner(studentId)
+        && incoming().keys().hasAll(['uid', 'displayName', 'ageGroup', 'language', 'stars', 'lessonsCompleted', 'quizzesCompleted', 'unlockedBadges', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['uid', 'displayName', 'ageGroup', 'language', 'stars', 'lessonsCompleted', 'quizzesCompleted', 'unlockedBadges', 'createdAt', 'updatedAt'])
+        && isValidStudent(incoming(), studentId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(studentId)
+        && isOwner(studentId)
+        && isValidStudent(incoming(), studentId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'ageGroup', 'language', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['stars', 'lessonsCompleted', 'quizzesCompleted', 'unlockedBadges', 'updatedAt'])
+        );
+
+      allow delete: if false;
+
+      match /sessions/{sessionId} {
+        allow get: if isValidId(studentId) && isValidId(sessionId) && isOwner(studentId)
+          && exists(/databases/$(database)/documents/students/$(studentId))
+          && get(/databases/$(database)/documents/students/$(studentId)).data.uid == request.auth.uid;
+
+        allow list: if isValidId(studentId) && isOwner(studentId) && resource.data.studentId == request.auth.uid;
+
+        allow create: if isValidId(studentId) && isValidId(sessionId)
+          && isOwner(studentId)
+          && incoming().keys().hasAll(['studentId', 'subject', 'topic', 'ageGroup', 'language', 'messageCount', 'starsEarned', 'createdAt', 'updatedAt'])
+          && incoming().keys().hasOnly(['studentId', 'subject', 'topic', 'ageGroup', 'language', 'messageCount', 'starsEarned', 'createdAt', 'updatedAt'])
+          && isValidSession(incoming(), studentId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/students/$(studentId))
+          && get(/databases/$(database)/documents/students/$(studentId)).data.uid == request.auth.uid;
+
+        allow update: if isValidId(studentId) && isValidId(sessionId)
+          && isOwner(studentId)
+          && isValidSession(incoming(), studentId)
+          && incoming().studentId == existing().studentId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['messageCount', 'starsEarned', 'topic', 'updatedAt'])
+          && exists(/databases/$(database)/documents/students/$(studentId))
+          && get(/databases/$(database)/documents/students/$(studentId)).data.uid == request.auth.uid;
+
+        allow delete: if isValidId(studentId) && isValidId(sessionId) && isOwner(studentId)
+          && existing().studentId == request.auth.uid;
+
+        match /messages/{messageId} {
+          allow get: if isValidId(studentId) && isValidId(sessionId) && isValidId(messageId) && isOwner(studentId)
+            && exists(/databases/$(database)/documents/students/$(studentId)/sessions/$(sessionId))
+            && get(/databases/$(database)/documents/students/$(studentId)/sessions/$(sessionId)).data.studentId == request.auth.uid;
+
+          allow list: if isValidId(studentId) && isValidId(sessionId) && isOwner(studentId)
+            && resource.data.studentId == request.auth.uid
+            && resource.data.sessionId == sessionId;
+
+          allow create: if isValidId(studentId) && isValidId(sessionId) && isValidId(messageId)
+            && isOwner(studentId)
+            && incoming().keys().hasAll(['studentId', 'sessionId', 'role', 'text', 'lessonTitle', 'createdAt'])
+            && incoming().keys().hasOnly(['studentId', 'sessionId', 'role', 'text', 'lessonTitle', 'createdAt'])
+            && isValidMessage(incoming(), studentId, sessionId)
+            && incoming().createdAt == request.time
+            && exists(/databases/$(database)/documents/students/$(studentId)/sessions/$(sessionId))
+            && get(/databases/$(database)/documents/students/$(studentId)/sessions/$(sessionId)).data.studentId == request.auth.uid;
+
+          allow update, delete: if false;
+        }
+      }
+
+      match /quizResults/{resultId} {
+        allow get: if isValidId(studentId) && isValidId(resultId) && isOwner(studentId)
+          && exists(/databases/$(database)/documents/students/$(studentId))
+          && get(/databases/$(database)/documents/students/$(studentId)).data.uid == request.auth.uid;
+
+        allow list: if isValidId(studentId) && isOwner(studentId) && resource.data.studentId == request.auth.uid;
+
+        allow create: if isValidId(studentId) && isValidId(resultId)
+          && isOwner(studentId)
+          && incoming().keys().hasAll(['studentId', 'subject', 'topic', 'ageGroup', 'score', 'totalQuestions', 'starsEarned', 'createdAt'])
+          && incoming().keys().hasOnly(['studentId', 'subject', 'topic', 'ageGroup', 'score', 'totalQuestions', 'starsEarned', 'createdAt'])
+          && isValidQuizResult(incoming(), studentId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/students/$(studentId))
+          && get(/databases/$(database)/documents/students/$(studentId)).data.uid == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

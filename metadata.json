@@ -1,0 +1,6 @@
+{
+  "name": "Shikshak — AI Teacher for Kids",
+  "description": "An interactive AI teacher agent for children with bilingual lessons, visual simulations, practice quizzes, read-aloud voice, and student login.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

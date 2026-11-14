@@ -1,0 +1,231 @@
+{
+  "entities": {
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "A child's learning profile, language/age preferences, stars, and unlocked badges.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "ageGroup": {
+          "type": "string",
+          "enum": ["5-7", "8-10", "11-14"]
+        },
+        "language": {
+          "type": "string",
+          "enum": ["en", "hinglish", "hi", "mr", "gu", "ta", "te", "bn", "kn"]
+        },
+        "stars": {
+          "type": "integer"
+        },
+        "lessonsCompleted": {
+          "type": "integer"
+        },
+        "quizzesCompleted": {
+          "type": "integer"
+        },
+        "unlockedBadges": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "ageGroup",
+        "language",
+        "stars",
+        "lessonsCompleted",
+        "quizzesCompleted",
+        "unlockedBadges",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LearningSession": {
+      "title": "LearningSession",
+      "description": "A tutoring lesson session for a subject and topic.",
+      "type": "object",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "ageGroup": {
+          "type": "string",
+          "enum": ["5-7", "8-10", "11-14"]
+        },
+        "language": {
+          "type": "string",
+          "enum": ["en", "hinglish", "hi", "mr", "gu", "ta", "te", "bn", "kn"]
+        },
+        "messageCount": {
+          "type": "integer"
+        },
+        "starsEarned": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "studentId",
+        "subject",
+        "topic",
+        "ageGroup",
+        "language",
+        "messageCount",
+        "starsEarned",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LessonMessage": {
+      "title": "LessonMessage",
+      "description": "An individual message exchanged between the student and the AI teacher inside a session.",
+      "type": "object",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "teacher"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "lessonTitle": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "studentId",
+        "sessionId",
+        "role",
+        "text",
+        "lessonTitle",
+        "createdAt"
+      ]
+    },
+    "QuizResult": {
+      "title": "QuizResult",
+      "description": "Completed practice quiz result and stars awarded.",
+      "type": "object",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "ageGroup": {
+          "type": "string",
+          "enum": ["5-7", "8-10", "11-14"]
+        },
+        "score": {
+          "type": "integer"
+        },
+        "totalQuestions": {
+          "type": "integer"
+        },
+        "starsEarned": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "studentId",
+        "subject",
+        "topic",
+        "ageGroup",
+        "score",
+        "totalQuestions",
+        "starsEarned",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/StudentProfile" },
+      "description": "Owner-only student learning profile and progress."
+    },
+    "/students/{studentId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/LearningSession" },
+      "description": "Tutoring sessions owned by the student."
+    },
+    "/students/{studentId}/sessions/{sessionId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/LessonMessage" },
+      "description": "Messages inside a student's tutoring session."
+    },
+    "/students/{studentId}/quizResults/{resultId}": {
+      "schema": { "$ref": "#/entities/QuizResult" },
+      "description": "Completed quiz attempts and scores for the student."
+    }
+  }
+}
